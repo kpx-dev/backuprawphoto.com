@@ -4,23 +4,28 @@ import json
 import pyexifinfo
 import magic
 import hashlib
+import time
+import redis
+import argparse
 from datetime import datetime
 from pathlib import Path
 from botocore.client import Config
 from decimal import Decimal
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
-boto_config = Config(connect_timeout=3600, read_timeout=3600,
-                     region_name='us-east-1')
 
+redis_client = redis.StrictRedis(host=os.environ.get('REDIS_HOST'),
+                                 port=int(os.environ.get('REDIS_PORT')),
+                                 db=0)
 
-def main():
-    glacier = boto3.resource('glacier', config=boto_config)
-    dyno = boto3.resource('dynamodb', config=boto_config)
+RAW_MIMES = ['image/x-canon-cr2']
+
+def main(directory):
+    glacier = boto3.resource('glacier')
+    dyno = boto3.resource('dynamodb')
     backup_table = dyno.Table(os.environ.get('DYNAMODB_TABLE'))
 
-    source = Path('/Users/kienpham/Pictures/Bishop')
-    # source = Path('/Users/kienpham/Desktop/raw')
+    source = Path(directory)
     if not source.is_dir():
         exit('not valid dir')
 
@@ -33,36 +38,23 @@ def main():
     for each_file in source.iterdir():
         file_path = source.joinpath(each_file)
         mime_type = mime.from_file(str(file_path))
-        if not mime_type.startswith('image'):
-            print('skipping non-image file ', each_file)
+
+        # if not mime_type.startswith('image'):
+        if mime_type not in RAW_MIMES and 'raw' not in mime_type:
+            print('Skipping non-raw file ', each_file)
             continue
 
-        print('processing file ', each_file)
+        print('Processing file ', each_file)
 
         exif = pyexifinfo.get_json(str(file_path))[0]
-        # exif_summary = {
-        #     'width': exif['EXIF:ImageWidth'],
-        #     'height': exif['EXIF:ImageHeight'],
-        #     'iso': exif['EXIF:ISO'],
-        #     'focal': exif['EXIF:FocalLength'],
-        #     'model': exif['EXIF:Model'],
-        #     'lens': exif['Composite:LensID'],
-        #     'flash': exif['EXIF:Flash'],
-        #     'exif_version': exif['EXIF:ExifVersion'],
-        #     'serial': exif['MakerNotes:SerialNumber'],
-        # }
+
         with file_path.open('rb') as f:
             file_content = f.read()
-            md5_checksum = hashlib.md5(file_content).hexdigest()
+            file_checksum = hashlib.sha512(file_content).hexdigest()
+            redis_key = 'backuprawphoto_{}_{}'.format(file_checksum, str(file_path))
 
-        res = backup_table.get_item(
-            Key={
-                'file_checksum': md5_checksum,
-                'file_path': str(file_path)
-            },
-            AttributesToGet=['file_checksum']
-        )
-        if 'Item' in res:
+        redis_res = redis_client.get(redis_key)
+        if redis_res:
             print('File already backed up ', file_path)
             continue
 
@@ -98,7 +90,7 @@ def main():
 
             res = backup_table.put_item(
                 Item={
-                    'file_checksum': md5_checksum,
+                    'file_checksum': file_checksum,
                     'file_path': str(file_path),
                     'file_name': str(each_file),
                     'backup_datetime': datetime.today().isoformat(),
@@ -131,7 +123,12 @@ def main():
                     'self_timer': self_timer
                 },
             )
-            print(archive.id)
+
+            if 'ResponseMetadata' in res and 'RequestId' in res['ResponseMetadata']:
+                redis_res = redis_client.set(redis_key, True)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("directory")
+    args = parser.parse_args()
+    main(directory=args.directory)
