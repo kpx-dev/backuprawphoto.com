@@ -1,0 +1,9 @@
+AWS_DEFAULT_REGION=us-east-1
+AWS_PROFILE=backuprawphoto
+
+AWS_ACCOUNT_ID=your_AWS_account_id
+AWS_VAULT_NAME=your_username
+DYNAMODB_TABLE=backuprawphoto
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
