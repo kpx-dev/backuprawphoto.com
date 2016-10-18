@@ -18,10 +18,11 @@ redis_client = redis.StrictRedis(host=os.environ.get('REDIS_HOST'),
                                  port=int(os.environ.get('REDIS_PORT')),
                                  db=0)
 
+boto_config = Config(connect_timeout=1000, read_timeout=1000)
 RAW_MIMES = ['image/x-canon-cr2']
 
 def main(directory):
-    glacier = boto3.resource('glacier')
+    glacier = boto3.resource('glacier', config=boto_config)
     dyno = boto3.resource('dynamodb')
     backup_table = dyno.Table(os.environ.get('DYNAMODB_TABLE'))
 
