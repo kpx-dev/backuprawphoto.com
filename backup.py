@@ -21,6 +21,9 @@ redis_client = redis.StrictRedis(host=os.environ.get('REDIS_HOST'),
 boto_config = Config(connect_timeout=1000, read_timeout=1000)
 RAW_MIMES = ['image/x-canon-cr2']
 
+class Backup:
+    pass
+
 def main(directory):
     glacier = boto3.resource('glacier', config=boto_config)
     dyno = boto3.resource('dynamodb')
@@ -31,8 +34,8 @@ def main(directory):
         exit('not valid dir')
 
     vault = glacier.Vault(
-        os.environ.get('AWS_ACCOUNT_ID'),
-        os.environ.get('AWS_VAULT_NAME'))
+        account_id=os.environ.get('AWS_ACCOUNT_ID'),
+        name=os.environ.get('AWS_VAULT_NAME'))
 
     mime = magic.Magic(mime=True)
 
@@ -46,8 +49,6 @@ def main(directory):
             continue
 
         print('Processing file ', each_file)
-
-        exif = pyexifinfo.get_json(str(file_path))[0]
 
         with file_path.open('rb') as f:
             file_content = f.read()
@@ -63,6 +64,8 @@ def main(directory):
             archiveDescription=str(file_path),
             body=file_content
         )
+
+        exif = pyexifinfo.get_json(str(file_path))[0]
 
         if archive.id:
             iso = int(exif['EXIF:ISO']) if 'EXIF:ISO' in exif else 0
