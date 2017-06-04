@@ -18,7 +18,7 @@ redis_client = redis.StrictRedis(host=os.environ.get('REDIS_HOST'),
                                  port=int(os.environ.get('REDIS_PORT')),
                                  db=0)
 
-boto_config = Config(connect_timeout=1000, read_timeout=1000)
+boto_config = Config(connect_timeout=120, read_timeout=120)
 RAW_MIMES = ['image/x-canon-cr2']
 
 class Backup:
