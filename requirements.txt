@@ -4,5 +4,5 @@ pyexifinfo==0.4.0
 python-dateutil==2.5.3
 python-dotenv==0.6.0
 python-magic==0.4.12
-redis==2.10.5
+redis==4.5.3
 zenlog==1.1
